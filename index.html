@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EaziBooking — Travel AI</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 900px; margin: 40px auto; padding: 0 16px; }
+      .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; margin: 14px 0; }
+      textarea { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d1d5db; }
+      button { padding: 10px 14px; border-radius: 12px; border: 1px solid #111827; background: #111827; color: white; cursor: pointer; }
+      .muted { color: #6b7280; font-size: 14px; }
+      pre { white-space: pre-wrap; background: #f9fafb; padding: 12px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    </style>
+  </head>
+  <body>
+    <h1>EaziBooking — AI Travel Booking (MVP)</h1>
+    <p class="muted">Backend is running. This page calls <code>/chat</code>.</p>
+
+    <div class="card">
+      <h3>Try it</h3>
+      <textarea id="msg" rows="3" placeholder="Example: Find me a flight from SFO to LHR on 2026-02-10 for 1 adult"></textarea>
+      <div style="margin-top:10px;">
+        <button onclick="send()">Send</button>
+      </div>
+      <h4>Response</h4>
+      <pre id="out">—</pre>
+    </div>
+
+    <div class="card">
+      <h3>API Docs</h3>
+      <p><a href="/docs">Open Swagger /docs</a></p>
+    </div>
+
+    <script>
+      async function send() {
+        const content = document.getElementById('msg').value.trim();
+        const payload = { messages: [{ role: "user", content }], state: {} };
+        const r = await fetch("/chat", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+        const j = await r.json();
+        document.getElementById('out').textContent = JSON.stringify(j, null, 2);
+      }
+    </script>
+  </body>
+</html>
