@@ -70,4 +70,3 @@ This code keeps hotels behind an interface so you can plug in the provider you g
 - `app/tools/duffel.py` Duffel client + functions
 - `app/tools/hotels.py` Hotel provider interface + stub implementation
 - `app/schemas.py` Pydantic request/response models
-
