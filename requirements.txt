@@ -1,5 +1,4 @@
 fastapi
-uvicorn[standard]
-duffel-api
-python-dotenv
-httpx
+uvicorn
+requests
+pydantic
