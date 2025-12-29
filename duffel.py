@@ -2,38 +2,30 @@ import os
 import httpx
 
 
-DUFFEL_BASE_URL = os.getenv("DUFFEL_BASE_URL", "https://api.duffel.com")
-DUFFEL_VERSION = os.getenv("DUFFEL_VERSION", "v2")
-DUFFEL_ACCESS_TOKEN = os.getenv("DUFFEL_ACCESS_TOKEN", "")
+DUFFEL_ACCESS_TOKEN = os.getenv("DUFFEL_ACCESS_TOKEN")
+DUFFEL_API_URL = "https://api.duffel.com/air/offer_requests"
 
 
 class DuffelClient:
-    def __init__(self) -> None:
+    def __init__(self):
         if not DUFFEL_ACCESS_TOKEN:
-            raise RuntimeError("DUFFEL_ACCESS_TOKEN is not set in environment variables")
+            raise RuntimeError("DUFFEL_ACCESS_TOKEN is not set")
 
         self.headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Duffel-Version": DUFFEL_VERSION,
             "Authorization": f"Bearer {DUFFEL_ACCESS_TOKEN}",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
         }
 
-    async def search_offers(self, payload: dict) -> dict:
-        """
-        Calls Duffel Offer Requests endpoint and returns the full Duffel response JSON.
-        """
-        url = f"{DUFFEL_BASE_URL}/air/offer_requests"
-
+    async def search_flights(self, payload: dict):
         async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(url, headers=self.headers, json={"data": payload})
+            response = await client.post(
+                DUFFEL_API_URL,
+                headers=self.headers,
+                json={"data": payload},
+            )
 
-        # Helpful error message if token / payload is wrong
-        if r.status_code >= 400:
-            try:
-                detail = r.json()
-            except Exception:
-                detail = {"raw": r.text}
-            raise RuntimeError(f"Duffel error {r.status_code}: {detail}")
+        if response.status_code >= 400:
+            raise RuntimeError(response.text)
 
-        return r.json()
+        return response.json()
