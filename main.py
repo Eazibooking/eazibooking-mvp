@@ -1,23 +1,22 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List, Optional, Literal
-
-from duffel_service import search_flights_duffel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from duffel_client import search_offers
 
 app = FastAPI(title="EaziBooking API")
 
 class Slice(BaseModel):
-    origin: str
-    destination: str
-    departure_date: str  # YYYY-MM-DD
+    origin: str = Field(..., description="IATA code e.g. SFO")
+    destination: str = Field(..., description="IATA code e.g. LAX")
+    departure_date: str = Field(..., description="YYYY-MM-DD")
 
 class Passenger(BaseModel):
-    type: Literal["adult", "child", "infant_without_seat", "infant_with_seat"] = "adult"
+    type: str = Field("adult", description="adult | child | infant_without_seat | infant_with_seat")
 
 class FlightSearchRequest(BaseModel):
     slices: List[Slice]
-    passengers: List[Passenger]
-    cabin_class: Optional[str] = "economy"
+    passengers: List[Passenger] = [Passenger(type="adult")]
+    cabin_class: Optional[str] = Field("economy", description="economy | premium_economy | business | first")
     max_connections: Optional[int] = 1
 
 @app.get("/")
@@ -29,12 +28,14 @@ async def health():
     return {"ok": True}
 
 @app.post("/flights/search")
-async def flights_search(req: FlightSearchRequest):
-    # Convert to Duffel format (same structure works well for Duffel Offer Requests)
-    payload = {
-        "slices": [s.model_dump() for s in req.slices],
-        "passengers": [p.model_dump() for p in req.passengers],
-        "cabin_class": req.cabin_class,
-        "max_connections": req.max_connections,
-    }
-    return search_flights_duffel(payload)
+async def flights_search(payload: FlightSearchRequest):
+    try:
+        result = search_offers(
+            slices=[s.model_dump() for s in payload.slices],
+            passengers=[p.model_dump() for p in payload.passengers],
+            cabin_class=payload.cabin_class,
+            max_connections=payload.max_connections,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
