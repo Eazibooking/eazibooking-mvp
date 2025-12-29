@@ -1,23 +1,20 @@
 import os
-import httpx
+import requests
 
-DUFFEL_BASE_URL = os.getenv("DUFFEL_BASE_URL", "https://api.duffel.com").rstrip("/")
-DUFFEL_VERSION = os.getenv("DUFFEL_VERSION", "v2")
+DUFFEL_API_KEY = os.getenv("DUFFEL_ACCESS_TOKEN")
+DUFFEL_API_URL = "https://api.duffel.com/air/offer_requests"
 
-def headers():
-    return {
-        "Authorization": f"Bearer {os.environ['DUFFEL_ACCESS_TOKEN']}",
-        "Duffel-Version": DUFFEL_VERSION,
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
+HEADERS = {
+    "Authorization": f"Bearer {DUFFEL_API_KEY}",
+    "Content-Type": "application/json",
+    "Duffel-Version": "beta"
+}
 
-async def create_offer_request(payload: dict):
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(
-            f"{DUFFEL_BASE_URL}/air/offer_requests",
-            headers=headers(),
-            json={"data": payload},
-        )
-        r.raise_for_status()
-        return r.json()["data"]
+def search_flights(payload: dict):
+    response = requests.post(
+        DUFFEL_API_URL,
+        headers=HEADERS,
+        json={"data": payload}
+    )
+    response.raise_for_status()
+    return response.json()
