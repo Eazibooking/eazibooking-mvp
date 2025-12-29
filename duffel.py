@@ -1,31 +1,34 @@
 import os
-import httpx
+import requests
 
+DUFFEL_BASE_URL = "https://api.duffel.com"
+DUFFEL_API_VERSION = "beta"  # Duffel requires 'Duffel-Version' header, commonly 'beta'
 
-DUFFEL_ACCESS_TOKEN = os.getenv("DUFFEL_ACCESS_TOKEN")
-DUFFEL_API_URL = "https://api.duffel.com/air/offer_requests"
-
-
-class DuffelClient:
-    def __init__(self):
-        if not DUFFEL_ACCESS_TOKEN:
-            raise RuntimeError("DUFFEL_ACCESS_TOKEN is not set")
-
-        self.headers = {
-            "Authorization": f"Bearer {DUFFEL_ACCESS_TOKEN}",
-            "Content-Type": "application/json",
-            "Duffel-Version": "v2",
+def search_flights_duffel(payload: dict) -> dict:
+    token = os.getenv("DUFFEL_ACCESS_TOKEN")
+    if not token:
+        return {
+            "ok": False,
+            "error": "Missing DUFFEL_ACCESS_TOKEN in environment variables (Render)",
         }
 
-    async def search_flights(self, payload: dict):
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(
-                DUFFEL_API_URL,
-                headers=self.headers,
-                json={"data": payload},
-            )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Duffel-Version": DUFFEL_API_VERSION,
+    }
 
-        if response.status_code >= 400:
-            raise RuntimeError(response.text)
+    # Create an offer request
+    url = f"{DUFFEL_BASE_URL}/air/offer_requests"
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
 
-        return response.json()
+    try:
+        data = resp.json()
+    except Exception:
+        return {"ok": False, "status_code": resp.status_code, "error": resp.text}
+
+    if resp.status_code >= 400:
+        return {"ok": False, "status_code": resp.status_code, "error": data}
+
+    return {"ok": True, "data": data}
