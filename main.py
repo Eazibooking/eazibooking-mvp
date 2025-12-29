@@ -1,44 +1,39 @@
-import os
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from duffel import DuffelClient
 
 app = FastAPI(title="EaziBooking API")
 
-# ---------- Schemas ----------
+
 class Slice(BaseModel):
-    origin: str = Field(..., example="SFO")
-    destination: str = Field(..., example="LAX")
-    departure_date: str = Field(..., example="2026-04-10")  # YYYY-MM-DD
+    origin: str
+    destination: str
+    departure_date: str
 
 
 class Passenger(BaseModel):
-    type: str = Field("adult", example="adult")  # adult, child, infant_without_seat, infant_with_seat
+    type: str = "adult"
 
 
 class FlightSearchRequest(BaseModel):
     slices: list[Slice]
     passengers: list[Passenger]
-    cabin_class: str | None = Field(None, example="economy")  # economy, premium_economy, business, first
-    max_connections: int | None = Field(None, example=0)
+    cabin_class: str | None = None
+    max_connections: int | None = None
 
 
-# ---------- Basic endpoints ----------
 @app.get("/")
 async def root():
     return {"status": "EaziBooking API is live"}
+
 
 @app.get("/health")
 async def health():
     return {"ok": True}
 
 
-# ---------- Flights Search ----------
 @app.post("/flights/search")
 async def flights_search(req: FlightSearchRequest):
-    """
-    Creates a Duffel Offer Request and returns offers.
-    """
     try:
         client = DuffelClient()
 
@@ -54,13 +49,9 @@ async def flights_search(req: FlightSearchRequest):
         if req.max_connections is not None:
             payload["max_connections"] = req.max_connections
 
-        duffel_json = await client.search_offers(payload)
-
-        # Return Duffel response (you can later “format” it nicely)
-        return duffel_json
+        return await client.search_flights(payload)
 
     except RuntimeError as e:
-        # Duffel errors show here clearly
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
