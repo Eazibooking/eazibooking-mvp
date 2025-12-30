@@ -1,31 +1,26 @@
 import os
-import requests
+from duffel_api import Duffel
 
-DUFFEL_API_BASE = "https://api.duffel.com"
-DUFFEL_VERSION = "v1"
-
-def search_flights(payload: dict) -> dict:
+def search_flights(origin: str, destination: str, departure_date: str,
+                   passengers: list, cabin_class: str = "economy", max_connections: int = 1):
     token = os.getenv("DUFFEL_TOKEN")
     if not token:
         raise RuntimeError("DUFFEL_TOKEN is missing in environment variables.")
 
-    url = f"{DUFFEL_API_BASE}/air/offer_requests"
+    duffel = Duffel(access_token=token)
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Duffel-Version": DUFFEL_VERSION,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+    payload = {
+        "slices": [
+            {
+                "origin": origin,
+                "destination": destination,
+                "departure_date": departure_date
+            }
+        ],
+        "passengers": passengers,
+        "cabin_class": cabin_class,
+        "max_connections": max_connections
     }
 
-    body = {"data": payload}
-
-    resp = requests.post(url, headers=headers, json=body, timeout=30)
-    # If Duffel returns an error, show it clearly
-    if resp.status_code >= 400:
-        try:
-            return {"error": resp.json(), "status_code": resp.status_code}
-        except Exception:
-            return {"error": resp.text, "status_code": resp.status_code}
-
-    return resp.json()
+    # IMPORTANT: Duffel SDK expects data=payload
+    return duffel.offer_requests.create(data=payload)
