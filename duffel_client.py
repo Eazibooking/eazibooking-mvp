@@ -1,46 +1,31 @@
 import os
 import requests
 
+DUFFEL_API_BASE = "https://api.duffel.com"
+DUFFEL_VERSION = "v1"
 
-DUFFEL_BASE_URL = "https://api.duffel.com/air/offer_requests"
+def search_flights(payload: dict) -> dict:
+    token = os.getenv("DUFFEL_TOKEN")
+    if not token:
+        raise RuntimeError("DUFFEL_TOKEN is missing in environment variables.")
 
+    url = f"{DUFFEL_API_BASE}/air/offer_requests"
 
-class DuffelClient:
-    def __init__(self, token: str | None = None):
-        self.token = token or os.getenv("DUFFEL_TOKEN")
-        if not self.token:
-            raise RuntimeError("DUFFEL_TOKEN is missing in environment variables.")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Duffel-Version": DUFFEL_VERSION,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
 
-    def create_offer_request(self, data: dict) -> dict:
-        """
-        Calls Duffel API: POST /air/offer_requests?return_offers=true
-        Docs: https://duffel.com/docs (Offer Requests)
-        """
-        headers = {
-            "Accept-Encoding": "gzip",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Duffel-Version": "v2",
-            "Authorization": f"Bearer {self.token}",
-        }
+    body = {"data": payload}
 
-        payload = {"data": data}
-
-        r = requests.post(
-            DUFFEL_BASE_URL,
-            params={"return_offers": "true"},
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-
-        # Raise a clean error if Duffel returns non-200
+    resp = requests.post(url, headers=headers, json=body, timeout=30)
+    # If Duffel returns an error, show it clearly
+    if resp.status_code >= 400:
         try:
-            body = r.json()
+            return {"error": resp.json(), "status_code": resp.status_code}
         except Exception:
-            body = {"error": r.text}
+            return {"error": resp.text, "status_code": resp.status_code}
 
-        if r.status_code >= 400:
-            raise RuntimeError(f"Duffel error {r.status_code}: {body}")
-
-        return body
+    return resp.json()
