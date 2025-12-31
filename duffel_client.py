@@ -1,31 +1,39 @@
 import os
-from duffel import Duffel
+import requests
+from fastapi import HTTPException
 
-def search_flights(
-    origin: str,
-    destination: str,
-    departure_date: str,
-    passengers: list,
-    cabin_class: str = "economy",
-    max_connections: int = 1
-):
+DUFFEL_URL = "https://api.duffel.com/air/offer_requests"
+
+
+def search_flights_duffel(body: dict):
     token = os.getenv("DUFFEL_TOKEN")
     if not token:
-        raise RuntimeError("DUFFEL_TOKEN is missing in environment variables.")
+        raise HTTPException(status_code=500, detail="DUFFEL_TOKEN is missing in environment variables.")
 
-    duffel = Duffel(access_token=token)
-
-    payload = {
-        "slices": [
-            {
-                "origin": origin,
-                "destination": destination,
-                "departure_date": departure_date
-            }
-        ],
-        "passengers": passengers,
-        "cabin_class": cabin_class,
-        "max_connections": max_connections
+    # Convert your API body -> Duffel format
+    data = {
+        "data": {
+            "slices": body["slices"],
+            "passengers": body["passengers"],
+            "cabin_class": body.get("cabin_class", "economy"),
+            "max_connections": body.get("max_connections", 1),
+        }
     }
 
-    return duffel.offer_requests.create(data=payload)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        # If Duffel ever complains, change this to the version shown in their docs/account
+        "Duffel-Version": "v1",
+    }
+
+    r = requests.post(DUFFEL_URL, json=data, headers=headers, timeout=30)
+
+    # Return Duffel error clearly
+    if r.status_code >= 400:
+        try:
+            return {"error": True, "status_code": r.status_code, "detail": r.json()}
+        except Exception:
+            return {"error": True, "status_code": r.status_code, "detail": r.text}
+
+    return r.json()
