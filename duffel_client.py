@@ -1,39 +1,36 @@
 import os
-import requests
-from fastapi import HTTPException
+import httpx
 
-DUFFEL_URL = "https://api.duffel.com/air/offer_requests"
+DUFFEL_BASE_URL = "https://api.duffel.com"
 
-
-def search_flights_duffel(body: dict):
+async def search_flights(payload: dict):
     token = os.getenv("DUFFEL_TOKEN")
     if not token:
-        raise HTTPException(status_code=500, detail="DUFFEL_TOKEN is missing in environment variables.")
+        raise ValueError("DUFFEL_TOKEN is missing in environment variables.")
 
-    # Convert your API body -> Duffel format
-    data = {
+    # Duffel expects: { "data": { "slices": [...], "passengers": [...], "cabin_class": "economy" } }
+    body = {
         "data": {
-            "slices": body["slices"],
-            "passengers": body["passengers"],
-            "cabin_class": body.get("cabin_class", "economy"),
-            "max_connections": body.get("max_connections", 1),
+            "slices": payload["slices"],
+            "passengers": payload["passengers"],
+            "cabin_class": payload.get("cabin_class", "economy"),
         }
     }
 
     headers = {
         "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        # If Duffel ever complains, change this to the version shown in their docs/account
+        "Accept": "application/json",
         "Duffel-Version": "v1",
     }
 
-    r = requests.post(DUFFEL_URL, json=data, headers=headers, timeout=30)
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.post(f"{DUFFEL_BASE_URL}/air/offer_requests", json=body, headers=headers)
 
-    # Return Duffel error clearly
+    # If Duffel returns an error, show it clearly
     if r.status_code >= 400:
         try:
-            return {"error": True, "status_code": r.status_code, "detail": r.json()}
+            return {"error": r.json(), "status_code": r.status_code}
         except Exception:
-            return {"error": True, "status_code": r.status_code, "detail": r.text}
+            return {"error": r.text, "status_code": r.status_code}
 
     return r.json()
