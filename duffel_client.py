@@ -1,36 +1,70 @@
 import os
-import httpx
+import json
+import urllib.request
+import urllib.error
+
 
 DUFFEL_BASE_URL = "https://api.duffel.com"
 
-async def search_flights(payload: dict):
+
+def _duffel_request(path: str, payload: dict) -> dict:
     token = os.getenv("DUFFEL_TOKEN")
     if not token:
-        raise ValueError("DUFFEL_TOKEN is missing in environment variables.")
+        raise RuntimeError("DUFFEL_TOKEN is missing in environment variables.")
 
-    # Duffel expects: { "data": { "slices": [...], "passengers": [...], "cabin_class": "economy" } }
-    body = {
+    url = f"{DUFFEL_BASE_URL}{path}"
+
+    data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Duffel-Version": "beta",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body)
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Duffel API error {e.code}: {err_body}")
+    except Exception as e:
+        raise RuntimeError(f"Duffel request failed: {str(e)}")
+
+
+def search_flights(payload: dict) -> dict:
+    """
+    Expected payload from your API:
+    {
+      "slices": [{"origin":"SFO","destination":"LAX","departure_date":"2026-02-15"}],
+      "passengers": [{"type":"adult"}],
+      "cabin_class": "economy",
+      "max_connections": 1
+    }
+    """
+    slices = payload.get("slices", [])
+    passengers = payload.get("passengers", [])
+    cabin_class = payload.get("cabin_class", "economy")
+    max_connections = payload.get("max_connections", 1)
+
+    # Duffel wants: { "data": { ... } }
+    duffel_payload = {
         "data": {
-            "slices": payload["slices"],
-            "passengers": payload["passengers"],
-            "cabin_class": payload.get("cabin_class", "economy"),
+            "slices": slices,
+            "passengers": passengers,
+            "cabin_class": cabin_class,
+            "max_connections": max_connections,
+
+            # IMPORTANT: this tells Duffel to return offers in same response
+            "return_offers": True,
         }
     }
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Duffel-Version": "v1",
-    }
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(f"{DUFFEL_BASE_URL}/air/offer_requests", json=body, headers=headers)
-
-    # If Duffel returns an error, show it clearly
-    if r.status_code >= 400:
-        try:
-            return {"error": r.json(), "status_code": r.status_code}
-        except Exception:
-            return {"error": r.text, "status_code": r.status_code}
-
-    return r.json()
+    return _duffel_request("/air/offer_requests", duffel_payload)
